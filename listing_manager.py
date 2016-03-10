@@ -1,16 +1,11 @@
 ﻿import requests, json
 
 
-item_link = raw_input("Gib mir link!:")
-
-
-
-
-
+#item_link = raw_input("Gib mir link!:")
     #print r.json()
 class Listing(object):
     def __init__(self, listing_dict):
-        print listing_dict
+        # print listing_dict
         self.id = listing_dict["listingid"]
         self.asset_id = listing_dict["asset"]["id"]
         self.d_parameter = listing_dict["asset"]["market_actions"][0]['link'].split("%assetid%")[-1]
@@ -22,6 +17,8 @@ class Listing(object):
             self.total_price = float(listing_dict["price"]) + float(listing_dict["fee"])
             self.price = float(listing_dict["price"])
             self.fee = float(listing_dict["fee"])
+    def create_rungame_serialization(self):
+        return "M%sA%s%s"%(self.id,self.asset_id,self.d_parameter)
     def __str__(self):
         return "%s(%r)" % (self.__class__, self.__dict__)
         
@@ -68,6 +65,6 @@ class ListingReceiver(object):
 
                 
            
-lr = ListingReceiver(item_link)
-datas = lr.get_all_items()
-lr.evaluate_listing(datas)
+#lr = ListingReceiver(item_link)
+#datas = lr.get_all_items()
+#lr.evaluate_listing(datas)
