@@ -7,13 +7,70 @@ from steam.enums.emsg import EMsg
 from listing_manager import Listing, ListingReceiver
 from csgo.enums import ECsgoGCMsg
 from dbconnector import DBConnector
+from threading import Thread, Lock
 from steam.core.msg import GCMsgHdr, GCMsgHdrProto
 import requests
 from csgo import CSGOClient
+
+wildmw = (0, 0.088, 88,
+          [r"http://steamcommunity.com/market/listings/730/MAG-7%20%7C%20Praetorian%20(Minimal%20Wear)",
+           r"http://steamcommunity.com/market/listings/730/Five-SeveN%20%7C%20Triumvirate%20(Minimal%20Wear)",
+           r"http://steamcommunity.com/market/listings/730/MP7%20%7C%20Impire%20(Minimal%20Wear)"])
+wildfn = (1, 0.02, 155,
+          [r"http://steamcommunity.com/market/listings/730/MAG-7%20%7C%20Praetorian%20(Factory%20New)",
+           r"http://steamcommunity.com/market/listings/730/Five-SeveN%20%7C%20Triumvirate%20(Factory%20New)",
+           r"http://steamcommunity.com/market/listings/730/MP7%20%7C%20Impire%20(Factory%20New)"])
+
+revolvomw = (1, 0.088, 95,
+             [
+                 r"http://steamcommunity.com/market/listings/730/StatTrak%E2%84%A2%20SCAR-20%20%7C%20Outbreak%20(Minimal%20Wear)",
+                 r"http://steamcommunity.com/market/listings/730/StatTrak%E2%84%A2%20Sawed-Off%20%7C%20Yorick%20(Minimal%20Wear)",
+                 r"http://steamcommuity.com/market/listings/730/StatTrak%E2%84%A2%20P2000%20%7C%20Imperial%20(Minimal%20Wear)"])
+revolvofn = (1, 0.02, 155,
+             [
+                 r"http://steamcommunity.com/market/listings/730/StatTrak%E2%84%A2%20P2000%20%7C%20Imperial%20(Factory%20New)",
+                 r"http://steamcommunity.com/market/listings/730/StatTrak%E2%84%A2%20SCAR-20%20%7C%20Outbreak%20(Factory%20New)"])
+links_plus = [(5, 0.10, 40,
+               [
+                   r"http://steamcommunity.com/market/listings/730/Dual%20Berettas%20%7C%20Urban%20Shock%20(Minimal%20Wear)",
+                   r"http://steamcommunity.com/market/listings/730/Sawed-Off%20%7C%20Serenity%20(Minimal%20Wear)",
+                   r"http://steamcommunity.com/market/listings/730/MAC-10%20%7C%20Malachite%20(Minimal%20Wear)"]),
+              revolvofn]
+
+
 links = [r"http://steamcommunity.com/market/listings/730/Dual%20Berettas%20%7C%20Urban%20Shock%20(Minimal%20Wear)",
  r"http://steamcommunity.com/market/listings/730/Sawed-Off%20%7C%20Serenity%20(Minimal%20Wear)",
  r"http://steamcommunity.com/market/listings/730/MAC-10%20%7C%20Malachite%20(Minimal%20Wear)"]
-class Manager(object):
+
+class ItemWatcher(Thread):
+    float_lock = Lock()
+    def __init__(self, manager, maxnum, maxfloat, maxprice, url):
+        Thread.__init__(self)
+        self.manager = manager
+        self.maxPrice = maxprice
+        self.maxNum = maxnum
+        self.numToBuy = maxnum
+        self.maxFloat = maxfloat,
+        self.url = url
+
+    def run(self):
+        while self.numToBuy > 0:
+            self.manager.request_lock.aquire()
+            print "fetching %s"%link
+            filtered = self.manager.receive_filtered_listings(self.url, self.maxPrice, self.maxFloat)
+
+            filtered = m.receive_filtered_listings(link, price, wear, slowmode=True)
+            for each in filtered:
+                print each
+                bought = m.buy_item(each)
+                if bought:
+                    self.numToBuy -= 1
+            time.sleep(20)
+            time.sleep(60)
+
+class Manager(Thread):
+    request_lock = Lock()
+
     def __init__(self):
         self.logOnDetails = {
                 'username': raw_input("Steam user: "),
@@ -34,6 +91,16 @@ class Manager(object):
         msg, = self.client.wait_event(EMsg.ClientAccountInfo)
         # print "Logged on as: %s" % msg.body.persona_name
         # self.client.run_forever()
+
+    def calc_avg(self, des, max=1, min=0):
+        return (des-min)/(max-min)
+
+    def calc_exp_win(self, invest, sells):
+        total_sell = 0
+        for sell in sells:
+            total_sell += (sell*0.85 - invest)
+        return float(total_sell)/float(len(sells))
+
     def _handle_client_reconnected(self, arg=None):
         print "Mofo ist reconnected %s"%arg
 
@@ -105,8 +172,10 @@ class Manager(object):
         prepared = buy_request.prepare()
         response = self.session.send(prepared)
         if (response.status_code == 200):
+            return True
             print("Bought %s for %f\n" % (listing.url, listing.total_price))
         else:
+            return False
             print("Couldn't buy %s for %f\n" % (listing.url, listing.total_price))
 
     def receive_all_listings(self, item_link):
@@ -221,21 +290,59 @@ if __name__ == "__main__":
             except KeyboardInterrupt:
                 pass
 
+        def fetch_and_buy(num, wear, price, link):
+            print "fetching %s" % link
+            numbought = 0
+            if numbought < num:
+                filtered = m.receive_filtered_listings(link, price, wear, slowmode=True)
+                for each in filtered:
+                    print each
+                    bought = None
+                    if num > numbought:
+                        bought = m.buy_item(each)
+                    else:
+                        print "Dont need to buy any more."
+                    if bought:
+                        numbought += 1
+                        print "Bought 1 - Need to buy %s more" % (num - numbought)
+                    else:
+                        print "Couldn't be bought still %s to buy" % (num - numbought)
+            return numbought
+
+
         if item_link == "watch and buy":
             price = 39
-            wear = 0.098
+            wear = 0.105
+            all_links = links_plus
+            nums = [x for x, _, _, _ in all_links]
+            total = sum(nums)
             try:
-                while True:
-                    for link in links:
-                        print "fetching %s"%link
-                        filtered = m.receive_filtered_listings(link, price, wear, slowmode=True)
-                        for each in filtered:
-                            print each
-                            m.buy_item(each)
+                while total > 0:
+                    for item in all_links:
+                        num, wear, price, link = item
+                        indexofitem = all_links.index(item)
+                        if isinstance(link, list):
+                            for url in link:
+                                bought = fetch_and_buy(num, wear, price, url)
+                                num = num - bought
+                                all_links[indexofitem] = (num - bought, wear, price, link)
+                        else:
+                            bought = fetch_and_buy(num, wear, price, link)
+                            all_links[all_links.index(item)] = (num - bought, wear, price, link)
                         time.sleep(20)
                     time.sleep(60)
+                    nums = [x for x, _, _, _ in all_links]
+                    total = sum(nums)
             except KeyboardInterrupt:
                 pass
+        if item_link == "start observer":
+            item = raw_input("Link to the Item: ")
+            price = raw_input("Max Price: ")
+            wear = raw_input("Max Float: ")
+            number = raw_input("How Many Shall be bought: ")
+            thread = ItemWatcher(m, number, wear, price, item)
+
+
 
 
 
