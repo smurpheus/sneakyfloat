@@ -1,11 +1,13 @@
 ﻿import requests, json
 import time
 import random
+from WebCommunicator import Communicator
 #item_link = raw_input("Gib mir link!:")
-    #print r.json()
+#print r.json()
 class Listing(object):
     def __init__(self, name="", paintindex=None, paintwear=None, quality=None, id=None,
-                 asset_id=None,d_param=None,total_price=None,price=None, fee=None, url=None, listing_dict=None, asset=None):
+                 asset_id=None, d_param=None, total_price=None, price=None, fee=None, url=None, listing_dict=None,
+                 asset=None):
         if listing_dict is not None and asset is not None:
             self.create_listing_from_dict(listing_dict, asset, url)
         else:
@@ -66,54 +68,27 @@ class ListingReceiver(object):
         self.sleep_mode = sleep_mode
         self.extracted_item = item_url.split("/")[-1]
         self.item_url = item_url
+        self.webcom = Communicator()
         priceoverview_url = item_url + self.listing_manipulator%(0,1)
-        self.user_agent = {'User-agent': 'Mozilla/5.0'}
-        def requesting(url, header):
-            timeouttime = random.randrange(40, 90)
-            r = requests.get(priceoverview_url, headers=header)
-            if r.ok:
-                return r
-            elif r.status_code == 429:
-                print "woooops steam is pissed i'm waiting for %s seconds"%timeouttime
-                time.sleep(timeouttime)
-                return requesting(url, header)
-            else:
-                print "Request Failed %s with url %s" % (r, url)
-                return False
-        r = requesting(item_url, self.user_agent)
-        if r and r.ok:
-            self.volume = int(r.json()["total_count"])
-            self.pages = range(0, self.volume, 100)
-            if self.volume/100 > 15:
-                self.pages = range(0, 1500, 100)
-        else:
-            print "Request Failed %s with url %s" % (r, priceoverview_url)
-        
+        self.volume = self.webcom.requestListingNumber(priceoverview_url)
+        self.pages = range(0, self.volume, 100)
+        if self.volume/100 > 15:
+            self.pages = range(0, 1500, 100)
+
     def get_items(self, start, count=100):
-        timeouttime = random.randrange(40, 90)
         listing_url = self.item_url + self.listing_manipulator % (start, count)
-        if self.sleep_mode:
-            time.sleep(random.randrange(1, 10))
-        def requesting(url, header):
-            r = requests.get(url, headers=header)
-            if r.ok:
-                data = r.json()
-                return data['listinginfo'], data['assets']['730']['2']
-            elif r.status_code == 429:
-                print "woooops steam is pissed i'm waiting for %s seconds"%timeouttime
-                time.sleep(timeouttime)
-                return requesting(url, header)
-            else:
-                print "Request Failed %s with url %s" % (r, url)
-                return False, False
-        return requesting(listing_url, self.user_agent)
-        
-    def get_all_items(self):
+        data = self.webcom.requestItems(listing_url)
+        return data['listinginfo'], data['assets']['730']['2']
+
+    def get_all_items(self, maxnum=None):
         datas = {}
         assets = {}
-        for start in self.pages:
+        pages = self.pages
+        if not None:
+            pages = round(maxnum / 100)
+        for start in pages:
             count = 100
-            if self.pages.index(start) == len(self.pages) - 1:
+            if self.pages.index(start) == len(pages) - 1:
                 count = self.volume % 100
             data, assets = self.get_items(start, count)
             if data and assets:
