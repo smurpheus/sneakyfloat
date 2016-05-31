@@ -1,6 +1,7 @@
 import requests, json
 import time
 import math
+import requests.exceptions
 
 
 class TimeoutCalculator(object):
@@ -43,7 +44,11 @@ class Communicator(object):
             return False
 
     def __doRequest(self, url):
-        r = requests.get(url, headers=self.user_agent)
+        try:
+            r = requests.get(url, headers=self.user_agent)
+        except requests.exceptions.MissingSchema:
+            print "The given URL raised an error %s"%url
+            return False
         if r.ok:
             return r
         elif r.status_code == 429:

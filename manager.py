@@ -4,6 +4,8 @@ from getpass import getpass
 from steam import SteamClient
 from steam.enums import EResult
 from steam.enums.emsg import EMsg
+from eventemitter import EventEmitter
+import gevent
 from listing_manager import Listing, ListingReceiver
 from csgo.enums import ECsgoGCMsg
 from dbconnector import DBConnector
@@ -42,10 +44,10 @@ links = [r"http://steamcommunity.com/market/listings/730/Dual%20Berettas%20%7C%2
          r"http://steamcommunity.com/market/listings/730/MAC-10%20%7C%20Malachite%20(Minimal%20Wear)"]
 
 
-class MyClient(object):
+class MyClient(EventEmitter):
     def __init__(self):
         self.logOnDetails = {
-            'username': input("Steam user: "),
+            'username': raw_input("Steam user: "),
             'password': getpass("Password: "),
         }
         self.session = None
@@ -79,10 +81,10 @@ class MyClient(object):
     def _handle_auth_req(self, is_2fa, code_mismatch):
         print("There is an authentication requiered.")
         if is_2fa:
-            code = input("Enter 2FA Code: ")
+            code = raw_input("Enter 2FA Code: ")
             self.logOnDetails.update({'two_factor_code': code})
         else:
-            code = input("Enter Email Code: ")
+            code = raw_input("Enter Email Code: ")
             self.logOnDetails.update({'auth_code': code})
 
         self.client.login(**self.logOnDetails)
@@ -102,14 +104,21 @@ class MyClient(object):
     def _handle_gc_ready(self):
         print("GC FUCKING RDY")
         self.ready = True
+        self.emit("READY")
 
     def _handle_gc_message(self, emsg=None, header=None, payload=None):
         print("gc got something%s  %s  %s" % (emsg, header, payload))
 
     def get_item_information(self, params):
-        self.goclient.send(ECsgoGCMsg.EMsgGCCStrike15_v2_Client2GCEconPreviewDataBlockRequest, params)
-        answer, = self.goclient.wait_event(ECsgoGCMsg.EMsgGCCStrike15_v2_Client2GCEconPreviewDataBlockResponse, 10,
-                                           True)
+        # print("get item info called with %s"%params)
+        try:
+            self.goclient.send(ECsgoGCMsg.EMsgGCCStrike15_v2_Client2GCEconPreviewDataBlockRequest, params)
+            answer, = self.goclient.wait_event(ECsgoGCMsg.EMsgGCCStrike15_v2_Client2GCEconPreviewDataBlockResponse, 10,
+                                               True)
+            print("Got an answer %s" % answer)
+        except gevent.timeout.Timeout:
+            print("Timed out for %s"%params)
+            return False
         return answer.iteminfo
 
     def get_float_value(self, iteminfo):
@@ -218,10 +227,10 @@ class MyClient(object):
 #             except KeyboardInterrupt:
 #                 pass
 #         if item_link == "start observer":
-#             item = input("Link to the Item: ")
-#             price = input("Max Price: ")
-#             wear = input("Max Float: ")
-#             number = input("How Many Shall be bought: ")
+#             item = raw_input("Link to the Item: ")
+#             price = raw_input("Max Price: ")
+#             wear = raw_input("Max Float: ")
+#             number = raw_input("How Many Shall be bought: ")
 #
 #         if item_link == "item":
 #             item_link = raw_input("Link zum Item: ")

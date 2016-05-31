@@ -32,21 +32,38 @@ class DBConnector(object):
         cur.execute("DELETE from listings WHERE Id=%s" % listing_id)
 
     def create_buy_order(self, item, number, maxfloat, maxprice):
-        statement = "INSERT INTO buyorders VALUES (%s,%s,%s,%s,%s)" % (item, number, 0, maxfloat, maxprice)
+        result = self.get_buy_order(item, maxfloat)
+        print result
+        if result:
+            return False
+        statement = "INSERT INTO buyorders VALUES ('%s', %s, %s,%s)" % (item, number, maxfloat, maxprice)
+        print(statement)
         cur = self.con.cursor()
         cur.execute(statement)
         self.con.commit()
 
-    def save_bought_item(self, item, float):
+    def get_buy_order(self, item, maxfloat):
         cur = self.con.cursor()
-        results = cur.execute("SELECT * FROM buyorders where item=%s and maxfloat=%s"%(item,float))
+        results = cur.execute("SELECT * FROM buyorders where item='%s' and maxfloat=%s" % (item, maxfloat)).fetchall()
         if len(results) < 1:
             return False
-        result = results[0]
-        bought = result[2]
-        bought += 1
-        statement = "UPDATE buyorders .......... where item=%s and maxfloat=%s"%(item,float)
-        #@todo Hier muss wat geschenen
+        return results[0]
 
+    def get_all_buy_orders(self):
+        cur = self.con.cursor()
+        results = cur.execute("SELECT * FROM buyorders").fetchall()
+        if len(results) < 1:
+            return False
+        return results
+
+    def save_bought_item(self, item, float):
+        cur = self.con.cursor()
+        result = self.get_buy_order(item, float)
+        if not result:
+            return False
+        bought = result[1]
+        bought -= 1
+        statement = "UPDATE buyorders set number=%s where item='%s' and maxfloat=%s"%(bought, item, float)
         cur.execute(statement)
+        self.con.commit()
 

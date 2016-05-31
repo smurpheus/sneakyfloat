@@ -64,11 +64,11 @@ class ListingReceiver(object):
     market_listing_base_url = "http://steamcommunity.com/market/listings/730/"
     listing_manipulator = "/render?start=%s&count=%s&currency=3&language=german&format=json"
     
-    def __init__(self, item_url, sleep_mode = False):
+    def __init__(self, item_url, timeouter, sleep_mode = False):
         self.sleep_mode = sleep_mode
         self.extracted_item = item_url.split("/")[-1]
         self.item_url = item_url
-        self.webcom = Communicator()
+        self.webcom = Communicator(timeouter)
         priceoverview_url = item_url + self.listing_manipulator%(0,1)
         self.volume = self.webcom.requestListingNumber(priceoverview_url)
         self.pages = range(0, self.volume, 100)
@@ -85,7 +85,7 @@ class ListingReceiver(object):
         assets = {}
         pages = self.pages
         if not None:
-            pages = round(maxnum / 100)
+            pages = range(int(round(maxnum / 100)))
         for start in pages:
             count = 100
             if self.pages.index(start) == len(pages) - 1:
@@ -99,8 +99,8 @@ class ListingReceiver(object):
                 sys.exit()
         return datas, assets
 
-    def get_all_listings(self):
-        datas, assets = self.get_all_items()
+    def get_all_listings(self, maxnum=None):
+        datas, assets = self.get_all_items(maxnum)
         return self.evaluate_listing(datas, assets)
 
     def evaluate_listing(self, listings, assets=None):
