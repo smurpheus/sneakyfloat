@@ -21,6 +21,7 @@ class FloatFetcher(EventEmitter):
         self.timeouter = TimeoutCalculator()
         self.urlq = Queue()
         self.listingq = Queue()
+        self.listingqfull = Queue()
         if do_login:
             self.goclient = MyClient()
             self.goclient.on("READY", self.clientrdy)
@@ -122,12 +123,39 @@ class ListingFetcher(Thread):
                 for listing in listings:
                     self.output.put(listing, True, 10)
 
+class InfoGrabber(Thread):
+
+    def __init__(self, inputqueue, output, goclient, db):
+        Thread.__init__(self)
+        self.running = False
+        self.input = inputqueue
+        self.output = output
+        self.goclient = goclient
+        self.db = db
+
+    def run(self):
+        self.running = True
+        while self.running:
+            if not self.input.empty():
+                listing = self.input.get(True, 10)
+                iteminfo = self.goclient.get_item_information(listing.return_param_dict())
+                time.sleep(0.2)
+                if iteminfo:
+                    floatv = self.goclient.get_float_value(iteminfo)
+                    listing.paintwear = floatv
+                    listing.quality = iteminfo.quality
+                    listing.paintindex = iteminfo.paintindex
+                    self.db.create_listing(listing)
+                    self.output.put(listing, True, 10)
+
 if __name__ == "__main__":
     f = FloatFetcher()
     f.get_deals()
     f.wait_event("READY", 10)
     lf = ListingFetcher(f.urlq, f.listingq, f.timeouter, f.db)
+    ig = InfoGrabber(f.listingq, f.listingqfull, f.goclient, f.db)
     f.fill_queue()
     lf.start()
+    ig.start()
     thread.start_new_thread(f.printOutput, ())
     # f.fetch_listings_for_deals()

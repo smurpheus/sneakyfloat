@@ -13,6 +13,8 @@ from threading import Thread, Lock
 from steam.core.msg import GCMsgHdr, GCMsgHdrProto
 import requests
 from csgo import CSGOClient
+from email_connector import EmailConnector
+import time
 
 wildmw = (0, 0.088, 88,
           [r"http://steamcommunity.com/market/listings/730/MAG-7%20%7C%20Praetorian%20(Minimal%20Wear)",
@@ -45,11 +47,14 @@ links = [r"http://steamcommunity.com/market/listings/730/Dual%20Berettas%20%7C%2
 
 
 class MyClient(EventEmitter):
-    def __init__(self):
+    def __init__(self, manual=True):
         self.logOnDetails = {
             'username': raw_input("Steam user: "),
             'password': getpass("Password: "),
         }
+        if not manual:
+            self.emailer = EmailConnector(raw_input("Email Adress: "), getpass("Password: "))
+        self.manual = manual
         self.session = None
         self.ready = False
         client = SteamClient()
@@ -80,14 +85,27 @@ class MyClient(EventEmitter):
 
     def _handle_auth_req(self, is_2fa, code_mismatch):
         print("There is an authentication requiered.")
-        if is_2fa:
-            code = raw_input("Enter 2FA Code: ")
-            self.logOnDetails.update({'two_factor_code': code})
-        else:
-            code = raw_input("Enter Email Code: ")
-            self.logOnDetails.update({'auth_code': code})
+        if self.manual:
+            if is_2fa:
+                code = raw_input("Enter 2FA Code: ")
+                self.logOnDetails.update({'two_factor_code': code})
+            else:
+                code = raw_input("Enter Email Code: ")
+                self.logOnDetails.update({'auth_code': code})
 
-        self.client.login(**self.logOnDetails)
+            self.client.login(**self.logOnDetails)
+        else:
+            if is_2fa:
+                self.emit("mobile_req")
+                code = raw_input("Enter 2FA Code: ")
+                self.logOnDetails.update({'two_factor_code': code})
+            else:
+                self.emit("email_req")
+                time.sleep(5)
+                code = self.emailer.getNewestCode()
+                self.logOnDetails.update({'auth_code': code})
+
+            self.client.login(**self.logOnDetails)
 
     def _client_handle_logon(self):
         print("Client logon was called!")

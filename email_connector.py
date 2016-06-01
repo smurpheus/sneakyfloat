@@ -68,7 +68,7 @@ class EmailConnector(object):
         querystring = "Guard-Code:"
         position = msg.find(querystring)
         position += len(querystring)
-        return msg[position:position+7]
+        return msg[position:position+7].replace("\r","").replace("\n","")
 
     def getNewestCode(self):
         rv, data = self.imapsock.select(EMAIL_FOLDER)
@@ -83,6 +83,6 @@ class EmailConnector(object):
 
 
 if __name__ == "__main__":
-    email = raw_input("Bitte Email Adresse eingeben: ")
-    ec = EmailConnector(email)
+    emailaddr = raw_input("Bitte Email Adresse eingeben: ")
+    ec = EmailConnector(emailaddr)
     print ec.getNewestCode()
