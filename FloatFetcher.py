@@ -4,12 +4,23 @@ from dbconnector import DBConnector
 from WebCommunicator import TimeoutCalculator
 import time
 from eventemitter import EventEmitter
+from Queue import Queue
+import thread
+from threading import Thread
+
+def _chunks(l, n):
+    """Yield successive n-sized chunks from l."""
+    for i in range(0, len(l), n):
+        yield l[i:i + n]
+
 class FloatFetcher(EventEmitter):
     goclient = None
     conffile = "./deals.csv"
 
     def __init__(self, do_login=True):
         self.timeouter = TimeoutCalculator()
+        self.urlq = Queue()
+        self.listingq = Queue()
         if do_login:
             self.goclient = MyClient()
             self.goclient.on("READY", self.clientrdy)
@@ -75,14 +86,48 @@ class FloatFetcher(EventEmitter):
                 else:
                     print(indb)
 
+    def printOutput(self):
+        while 1==1:
+            if not self.listingq.empty():
+                print self.listingq.get(True, 10)
+
+
     def fetch_listings_for_deals(self):
         orders = self.db.get_all_buy_orders()
         for item, number, maxfloat, maxprice in orders:
             print self.receive_filtered_listings(item, maxprice, maxfloat, maxnum=100)
 
+    def fill_queue(self):
+        orders = self.db.get_all_buy_orders()
+        for item, number, maxfloat, maxprice in orders:
+            self.urlq.put(item,timeout=10)
+
+class ListingFetcher(Thread):
+
+    def __init__(self, inputqueue, output, timeouter, db):
+        Thread.__init__(self)
+        self.running = False
+        self.input = inputqueue
+        self.output = output
+        self.timeouter = timeouter
+        self.db = db
+
+    def run(self):
+        self.running = True
+        while self.running:
+            if not self.input.empty():
+                url = self.input.get(True, 10)
+                receiver = ListingReceiver(url, self.timeouter)
+                listings = receiver.get_all_listings(100)
+                for listing in listings:
+                    self.output.put(listing, True, 10)
 
 if __name__ == "__main__":
     f = FloatFetcher()
     f.get_deals()
     f.wait_event("READY", 10)
-    f.fetch_listings_for_deals()
+    lf = ListingFetcher(f.urlq, f.listingq, f.timeouter, f.db)
+    f.fill_queue()
+    lf.start()
+    thread.start_new_thread(f.printOutput, ())
+    # f.fetch_listings_for_deals()
