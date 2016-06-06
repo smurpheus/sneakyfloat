@@ -1,2 +1,17 @@
-item ; number ; maxfloat; maxprice
-http://steamcommunity.com/market/listings/730/Dual%20Berettas%20%7C%20Urban%20Shock%20(Minimal%20Wear) ; 10 ; 0.1 ; 40
+item ; number ; maxfloat; maxprice;buygrp;dealno;dealname
+http://steamcommunity.com/market/listings/730/Dual%20Berettas%20%7C%20Urban%20Shock%20(Minimal%20Wear) ;4; 0.1 ;38;1;1;Chroma1
+http://steamcommunity.com/market/listings/730/MAC-10%20%7C%20Malachite%20(Minimal%20Wear);3;0.1;38;1;1;Chroma1
+http://steamcommunity.com/market/listings/730/Sawed-Off%20%7C%20Serenity%20(Minimal%20Wear);3;0.1;38;1;1;Chroma1
+http://steamcommunity.com/market/listings/730/G3SG1%20%7C%20Flux%20(Minimal%20Wear);0;0.09;315;2;2;Shadow
+http://steamcommunity.com/market/listings/730/SSG%2008%20%7C%20Big%20Iron%20(Factory%20New);0;0.02;500;3;2;Shadow
+http://steamcommunity.com/market/listings/730/SSG%2008%20%7C%20Big%20Iron%20(Minimal%20Wear);0;0.09;315;2;2;Shadow
+http://steamcommunity.com/market/listings/730/StatTrak%E2%84%A2%20P2000%20%7C%20Imperial%20(Factory%20New);0;0.02;155;4;3;RevolvoLow
+http://steamcommunity.com/market/listings/730/StatTrak%E2%84%A2%20SCAR-20%20%7C%20Outbreak%20(Factory%20New);0;0.02;155;4;3;RevolvoLow
+http://steamcommunity.com/market/listings/730/StatTrak%E2%84%A2%20Sawed-Off%20%7C%20Yorick%20(Minimal%20Wear);0;0.09;65;7;3;RevolvoLow
+http://steamcommunity.com/market/listings/730/StatTrak%E2%84%A2%20P2000%20%7C%20Imperial%20(Minimal%20Wear);0;0.09;65;7;3;RevolvoLow
+http://steamcommunity.com/market/listings/730/StatTrak%E2%84%A2%20SCAR-20%20%7C%20Outbreak%20(Minimal%20Wear);0;0.09;65;7;3;RevolvoLow
+http://steamcommunity.com/market/listings/730/MP9%20%7C%20Ruby%20Poison%20Dart%20(Minimal%20Wear);0;0.1;33;5;4;Bloudhound
+http://steamcommunity.com/market/listings/730/FAMAS%20%7C%20Neural%20Net%20(Minimal%20Wear);0;0.1;33;5;4;Bloudhound
+http://steamcommunity.com/market/listings/730/P2000%20%7C%20Handgun%20(Minimal%20Wear);0;0.1;33;5;4;Bloudhound
+http://steamcommunity.com/market/listings/730/FAMAS%20%7C%20Neural%20Net%20(Factory%20New);0;0.02;52;6;4;Bloudhound
+http://steamcommunity.com/market/listings/730/MP9%20%7C%20Ruby%20Poison%20Dart%20(Factory%20New);0;0.02;52;6;4;Bloudhound
