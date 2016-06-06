@@ -1,12 +1,13 @@
 from listing_manager import ListingReceiver
 from manager import MyClient
 from dbconnector import DBConnector
-from WebCommunicator import TimeoutCalculator
+from WebCommunicator import TimeoutCalculator, Communicator
 import time
 from eventemitter import EventEmitter
 from Queue import Queue
 import thread
-from threading import Thread
+from csgo.msg import get_emsg_enum, find_proto
+from threading import Thread, Timer, RLock, Event
 
 def _chunks(l, n):
     """Yield successive n-sized chunks from l."""
@@ -23,11 +24,13 @@ class FloatFetcher(EventEmitter):
         self.listingq = Queue()
         self.listingqfull = Queue()
         if do_login:
-            self.goclient = MyClient()
+            self.goclient = MyClient(False)
             self.goclient.on("READY", self.clientrdy)
-        self.db = DBConnector()
+        self.db = None
+        self.db_lock = RLock()
 
     def clientrdy(self):
+        print("goclient is ready!")
         self.emit("READY")
 
     def calc_avg(self, des, max=1, min=0):
@@ -44,28 +47,30 @@ class FloatFetcher(EventEmitter):
 
     def receive_filtered_listings(self, item_link, price=10 ** 10, wear=10, slowmode=False, maxnum=None):
         filtered = []
-        l_receiver = ListingReceiver(item_link, self.timeouter)
+        l_receiver = ListingReceiver(item_link, self.timeouter, self.goclient.client.get_web_session())
         if self.goclient.goclient.ready:
             listings = l_receiver.get_all_listings(maxnum)
             print("found %s entries for item" % len(listings))
             inprice = [x for x in listings if x.total_price <= float(price)]
             print("%s with correct price" % len(inprice))
             for listing in listings:
-                saved_listing = self.db.get_listing_by_id(listing.id)
-                if listing.total_price <= float(price):
-                    if not saved_listing:
-                        iteminfo = self.goclient.get_item_information(listing.return_param_dict())
-                        time.sleep(0.2)
-                        if iteminfo:
-                            floatv = self.goclient.get_float_value(iteminfo)
-                            listing.paintwear = floatv
-                            listing.quality = iteminfo.quality
-                            listing.paintindex = iteminfo.paintindex
-                            self.db.create_listing(listing)
-                            if listing.paintwear <= float(wear):
-                                # print "Float of this item %s index %s" %(floatv, iteminfo.paintindex)
-                                # print "Price: %s; listing id: %s" %(listing.total_price, listing.id)
-                                filtered.append(listing)
+                with self.db_lock:
+                    db = DBConnector()
+                    saved_listing = db.get_listing_by_id(listing.id)
+                    if listing.total_price <= float(price):
+                        if not saved_listing:
+                            iteminfo = self.goclient.get_item_information(listing.return_param_dict())
+                            time.sleep(0.2)
+                            if iteminfo:
+                                floatv = self.goclient.get_float_value(iteminfo)
+                                listing.paintwear = floatv
+                                listing.quality = iteminfo.quality
+                                listing.paintindex = iteminfo.paintindex
+                                db.create_listing(listing)
+                                if listing.paintwear <= float(wear):
+                                    # print "Float of this item %s index %s" %(floatv, iteminfo.paintindex)
+                                    # print "Price: %s; listing id: %s" %(listing.total_price, listing.id)
+                                    filtered.append(listing)
             print("%s of them with correct wear" % len(filtered))
             return filtered
         else:
@@ -76,16 +81,42 @@ class FloatFetcher(EventEmitter):
 
     def get_deals(self):
         with open(self.conffile, "r") as file:
-            lines = file.readlines()
-            for line in lines[1:]:
-                item, number, maxfloat, maxprice = line.split(";")
-                item = item.replace(" ","")
-                print("%s %s,%s,%s,%s" % (lines.index(line), item.replace(" ",""), number, maxfloat, maxprice))
-                indb = self.db.get_buy_order(item, maxfloat)
-                if not indb:
-                    self.db.create_buy_order(item, number,maxfloat,maxprice)
+            db = DBConnector()
+            with self.db_lock:
+                lines = file.readlines()
+                for line in lines[1:]:
+                    item, number, maxfloat, maxprice = line.split(";")
+                    item = item.replace(" ","")
+                    print("%s %s,%s,%s,%s" % (lines.index(line), item.replace(" ",""), number, maxfloat, maxprice))
+                    indb = db.get_buy_order(item, maxfloat)
+                    if not indb:
+                        db.create_buy_order(item, number,maxfloat,maxprice)
+                    else:
+                        print(indb)
+
+    def work_info_q(self):
+        while not self.listingq.empty():
+            listing = self.listingq.get(True, 10)
+            # print("Input Listing %s"%listing)
+            with self.db_lock:
+                db = DBConnector()
+                saved_listing = db.get_listing_by_id(listing.id)
+                # print("Listing in work %s"%listing)
+                if not saved_listing:
+                    # print(listing.return_param_dict())
+                    iteminfo = self.goclient.get_item_information(listing.return_param_dict())
+                    # time.sleep(0.2)
+                    if iteminfo:
+                        floatv = self.goclient.get_float_value(iteminfo)
+                        print("Float value aquired %s" % floatv)
+                        listing.paintwear = floatv
+                        listing.quality = iteminfo.quality
+                        listing.paintindex = iteminfo.paintindex
+                        db.create_listing(listing)
+                        self.listingqfull.put(listing, True, 10)
                 else:
-                    print(indb)
+                    pass
+                    # print("List
 
     def printOutput(self):
         while 1==1:
@@ -94,68 +125,109 @@ class FloatFetcher(EventEmitter):
 
 
     def fetch_listings_for_deals(self):
-        orders = self.db.get_all_buy_orders()
-        for item, number, maxfloat, maxprice in orders:
-            print self.receive_filtered_listings(item, maxprice, maxfloat, maxnum=100)
+        with self.db_lock:
+            db = DBConnector()
+            orders = db.get_all_buy_orders()
+            for item, number, maxfloat, maxprice in orders:
+                print self.receive_filtered_listings(item, maxprice, maxfloat, maxnum=100)
 
     def fill_queue(self):
-        orders = self.db.get_all_buy_orders()
-        for item, number, maxfloat, maxprice in orders:
-            self.urlq.put(item,timeout=10)
+        with self.db_lock:
+            print("Filling Queue!!!!!")
+            db = DBConnector()
+            orders = db.get_all_buy_orders()
+            for item, number, maxfloat, maxprice in orders:
+                self.urlq.put(item, timeout=10)
 
 class ListingFetcher(Thread):
 
     def __init__(self, inputqueue, output, timeouter, db):
-        Thread.__init__(self)
+        thread = Thread(target=self.run, args=())
+        thread.daemon = True  # Daemonize thread
         self.running = False
         self.input = inputqueue
         self.output = output
         self.timeouter = timeouter
-        self.db = db
+        thread.start()
+
 
     def run(self):
         self.running = True
         while self.running:
             if not self.input.empty():
                 url = self.input.get(True, 10)
+                # print("Querying url")
                 receiver = ListingReceiver(url, self.timeouter)
                 listings = receiver.get_all_listings(100)
                 for listing in listings:
                     self.output.put(listing, True, 10)
+            else:
+                # print("Deal Queue Empty!")
+                time.sleep(5)
 
-class InfoGrabber(Thread):
 
-    def __init__(self, inputqueue, output, goclient, db):
-        Thread.__init__(self)
-        self.running = False
-        self.input = inputqueue
-        self.output = output
-        self.goclient = goclient
-        self.db = db
+class FillQueue(Thread):
+    def __init__(self, event, client):
+        thread = Thread(target=self.run, args=())
+        thread.daemon = True  # Daemonize thread
+        self.stopped = event
+        self.client = client
+        thread.start()
 
     def run(self):
-        self.running = True
-        while self.running:
-            if not self.input.empty():
-                listing = self.input.get(True, 10)
-                iteminfo = self.goclient.get_item_information(listing.return_param_dict())
-                time.sleep(0.2)
-                if iteminfo:
-                    floatv = self.goclient.get_float_value(iteminfo)
-                    listing.paintwear = floatv
-                    listing.quality = iteminfo.quality
-                    listing.paintindex = iteminfo.paintindex
-                    self.db.create_listing(listing)
-                    self.output.put(listing, True, 10)
+        while not self.stopped.wait(60):
+            self.client.fill_queue()
+
+class Buyer(Thread):
+    def __init__(self, event, client):
+        thread = Thread(target=self.run, args=())
+        thread.daemon = True  # Daemonize thread
+        self.stopped = event
+        self.client = client
+        self.web = Communicator(self.client.timeouter, self.client.goclient.client.get_web_session())
+        thread.start()
+
+    def run(self):
+        while not self.stopped.wait(10):
+            with self.client.db_lock:
+                db = DBConnector()
+                buyorders = db.get_all_buy_orders()
+                print "Buyorders fetched"
+                for item, number, maxfloat, maxprice in buyorders:
+                    if number >= 1:
+                        listings = db.get_listing_for_url(item)
+                        fitting = [x for x in listings if x.total_price <= float(maxprice) and x.paintwear <= float(maxfloat)]
+                        for item in fitting:
+                            print("BUYING ITEM!!!!!!!!!!!!!!!")
+                            saved = db.save_bought_item(item, maxfloat)
+                            if not saved:
+                                print ("COULD NOT BE SAVED!!!")
+
 
 if __name__ == "__main__":
     f = FloatFetcher()
+    f.goclient.wait_event("READY")
     f.get_deals()
-    f.wait_event("READY", 10)
-    lf = ListingFetcher(f.urlq, f.listingq, f.timeouter, f.db)
-    ig = InfoGrabber(f.listingq, f.listingqfull, f.goclient, f.db)
+
     f.fill_queue()
-    lf.start()
-    ig.start()
-    thread.start_new_thread(f.printOutput, ())
+    # f.fetch_listings_for_deals()
+    lf = ListingFetcher(f.urlq, f.listingq, f.timeouter, f.db)
+    buyer = Buyer(Event(), f)
+    # qfiller = FillQueue(Event(), f)
+    try:
+        while True:
+            f.work_info_q()
+            time.sleep(10)
+    except KeyboardInterrupt:
+        pass
+    # t = thread.start_new_thread(f.printOutput, ())
+    raw_input("Waiting")
+    buyer.stopped.set()
+    # qfiller.stopped.set()
+    lf.running = False
+
+    # while not f.listingqfull.empty():
+    #     print("Iteminfor %s"%f.listingqfull.get())
+
+
     # f.fetch_listings_for_deals()

@@ -64,11 +64,11 @@ class ListingReceiver(object):
     market_listing_base_url = "http://steamcommunity.com/market/listings/730/"
     listing_manipulator = "/render?start=%s&count=%s&currency=3&language=german&format=json"
     
-    def __init__(self, item_url, timeouter, sleep_mode = False):
+    def __init__(self, item_url, timeouter, sleep_mode = False, session=False):
         self.sleep_mode = sleep_mode
         self.extracted_item = item_url.split("/")[-1]
         self.item_url = item_url
-        self.webcom = Communicator(timeouter)
+        self.webcom = Communicator(timeouter, session)
         priceoverview_url = item_url + self.listing_manipulator%(0,1)
         self.volume = self.webcom.requestListingNumber(priceoverview_url)
         self.pages = range(0, self.volume, 100)

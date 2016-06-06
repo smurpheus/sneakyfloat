@@ -52,7 +52,7 @@ class EmailConnector(object):
                 content = raw_data[0][1]
                 decode = email.header.decode_header(msg['Subject'])[0]
                 subject = unicode(decode[0])
-                print 'Message %s: %s' % (num, subject)
+                # print 'Message %s: %s' % (num, subject)
                 # Now convert to local date-time
                 date_tuple = email.utils.parsedate_tz(msg['Date'])
                 if date_tuple:
@@ -60,15 +60,15 @@ class EmailConnector(object):
                     emails_by_date[timestamp] = content
                     local_date = datetime.datetime.fromtimestamp(
                         email.utils.mktime_tz(date_tuple))
-                    print "Local Date:", \
-                        local_date.strftime("%a, %d %b %Y %H:%M:%S")
+                    # print "Local Date:", \
+                    #     local_date.strftime("%a, %d %b %Y %H:%M:%S")
         return emails_by_date
 
     def _get_code(self, msg):
-        querystring = "Guard-Code:"
+        querystring = "smurf3us:"
         position = msg.find(querystring)
         position += len(querystring)
-        return msg[position:position+7].replace("\r","").replace("\n","")
+        return msg[position:position+10].replace("\r","").replace("\n","")
 
     def getNewestCode(self):
         rv, data = self.imapsock.select(EMAIL_FOLDER)

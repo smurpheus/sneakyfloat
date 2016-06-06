@@ -44,7 +44,8 @@ links_plus = [(5, 0.10, 40,
 links = [r"http://steamcommunity.com/market/listings/730/Dual%20Berettas%20%7C%20Urban%20Shock%20(Minimal%20Wear)",
          r"http://steamcommunity.com/market/listings/730/Sawed-Off%20%7C%20Serenity%20(Minimal%20Wear)",
          r"http://steamcommunity.com/market/listings/730/MAC-10%20%7C%20Malachite%20(Minimal%20Wear)"]
-
+mail = "smurpheus@gmail.com"
+user = "smurf3us"
 
 class MyClient(EventEmitter):
     def __init__(self, manual=True):
@@ -52,8 +53,13 @@ class MyClient(EventEmitter):
             'username': raw_input("Steam user: "),
             'password': getpass("Password: "),
         }
+        # self.logOnDetails = {
+        #     'username': user,
+        #     'password': getpass("Password: "),
+        # }
         if not manual:
-            self.emailer = EmailConnector(raw_input("Email Adress: "), getpass("Password: "))
+            mail = raw_input("Email Adress: ")
+            self.emailer = EmailConnector(mail, getpass("Password: "))
         self.manual = manual
         self.session = None
         self.ready = False
@@ -66,8 +72,11 @@ class MyClient(EventEmitter):
         self.client.on('connected', self._handle_client_connected)
         self.client.on('disconnected', self._handle_client_disconnected)
         self.client.on('reconnected', self._handle_client_reconnected)
+        print("Doing login")
         self.client.login(**self.logOnDetails)
-        msg, = self.client.wait_event(EMsg.ClientAccountInfo)
+        print("Login was sent.")
+
+        # msg, = self.client.wait_event(EMsg.ClientAccountInfo, 20)
         # print "Logged on as: %s" % msg.body.persona_name
         # self.client.run_forever()
 
@@ -103,6 +112,7 @@ class MyClient(EventEmitter):
                 self.emit("email_req")
                 time.sleep(5)
                 code = self.emailer.getNewestCode()
+                print("LOGIN CODE %s"%code)
                 self.logOnDetails.update({'auth_code': code})
 
             self.client.login(**self.logOnDetails)
@@ -114,9 +124,10 @@ class MyClient(EventEmitter):
 
     def _connect_go(self):
         self.goclient = CSGOClient(self.client)
-        self.goclient.on(None, self._handle_gc_message())
         self.goclient.launch()
-        self.goclient.on('ready', self._handle_gc_ready())
+        # self.goclient.on(None, self._handle_gc_message)
+        self.goclient.on(ECsgoGCMsg.EMsgGCCStrike15_v2_Client2GCEconPreviewDataBlockResponse, self.safe_to_queue)
+        self.goclient.on('ready', self._handle_gc_ready)
         # self.client.run_forever()
 
     def _handle_gc_ready(self):
@@ -124,8 +135,10 @@ class MyClient(EventEmitter):
         self.ready = True
         self.emit("READY")
 
-    def _handle_gc_message(self, emsg=None, header=None, payload=None):
-        print("gc got something%s  %s  %s" % (emsg, header, payload))
+    def _handle_gc_message(self, emsg = None, msg=None):
+        print("handle GC was called")
+        print("msg: %s" % (msg))
+        print("emsg: %s" % (emsg))
 
     def get_item_information(self, params):
         # print("get item info called with %s"%params)
@@ -133,11 +146,23 @@ class MyClient(EventEmitter):
             self.goclient.send(ECsgoGCMsg.EMsgGCCStrike15_v2_Client2GCEconPreviewDataBlockRequest, params)
             answer, = self.goclient.wait_event(ECsgoGCMsg.EMsgGCCStrike15_v2_Client2GCEconPreviewDataBlockResponse, 10,
                                                True)
-            print("Got an answer %s" % answer)
+            # print("Got an answer %s" % answer)
         except gevent.timeout.Timeout:
             print("Timed out for %s"%params)
             return False
         return answer.iteminfo
+
+    def get_item_information_async(self, params):
+        # print("get item info called with %s"%params)
+        print self.goclient.connection_status
+        self.goclient.send(ECsgoGCMsg.EMsgGCCStrike15_v2_Client2GCEconPreviewDataBlockRequest, params)
+        print "Send stuff"
+
+
+    def safe_to_queue(self, emsg=None, msg=None):
+        print("Many stuff got%s  %s " % (emsg, msg))
+        # print("Got an answer %s" % answer)
+
 
     def get_float_value(self, iteminfo):
         return struct.unpack('f', struct.pack('I', iteminfo.paintwear))[0]

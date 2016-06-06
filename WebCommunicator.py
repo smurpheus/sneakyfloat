@@ -25,9 +25,10 @@ class TimeoutCalculator(object):
 
 
 class Communicator(object):
-    def __init__(self, timeouter):
+    def __init__(self, timeouter, session):
         self.user_agent = {'User-agent': 'Mozilla/5.0'}
         self.timeouter = timeouter
+        self.session = session
 
     def requestListingNumber(self, item_url):
         r = self.__doRequest(item_url)
