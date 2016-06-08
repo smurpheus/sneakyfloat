@@ -23,7 +23,10 @@ class DBConnector(object):
         if len(results) < 1:
             return False
         result = results[0]
-        return result
+        result_dict = {}
+        result_dict['name'] = result[0]
+        result_dict['id'] = result[1]
+        return result_dict
 
     def get_deal_by_id(self, id):
         cur = self.con.cursor()
@@ -31,14 +34,22 @@ class DBConnector(object):
         if len(results) < 1:
             return False
         result = results[0]
-        return result
+        result_dict = {}
+        result_dict['name'] = result[0]
+        result_dict['id'] = result[1]
+        return result_dict
 
     def get_all_deals(self):
         cur = self.con.cursor()
         results = cur.execute("SELECT * from deals").fetchall()
         if len(results) < 1:
             return False
-        result = results
+        result = []
+        for each in results:
+            result_dict = {}
+            result_dict['name'] = each[0]
+            result_dict['id'] = each[1]
+            result.append(result_dict)
         return result
 
     def get_all_grps(self):
@@ -46,7 +57,15 @@ class DBConnector(object):
         results = cur.execute("SELECT * from buygroup").fetchall()
         if len(results) < 1:
             return False
-        result = results
+        result = []
+        for each in results:
+            result_dict = {}
+            result_dict['grp_id'] = each[0]
+            result_dict['number'] = each[1]
+            result_dict['float'] = each[2]
+            result_dict['deal_id'] = each[3]
+            result_dict['price'] = each[4]
+            result.append(result_dict)
         return result
 
     def get_deal_grp_by(self, key, value):
@@ -55,7 +74,13 @@ class DBConnector(object):
         if len(results) < 1:
             return False
         result = results[0]
-        return result
+        result_dict = {}
+        result_dict['grp_id'] = result[0]
+        result_dict['number'] = result[1]
+        result_dict['float'] = result[2]
+        result_dict['deal_id'] = result[3]
+        result_dict['price'] = result[4]
+        return result_dict
 
     def create_deal_grp(self, grp_id, number, floatv, deal_id, price):
         statement = "INSERT INTO buygroup VALUES(%s,%s,%s,%s,%s)" % (grp_id, number, floatv, deal_id, price)
@@ -65,8 +90,11 @@ class DBConnector(object):
 
     def create_deal(self, name):
         alldeals = self.get_all_deals()
-        max_id = max(x[0] for x in alldeals)
-        max_id += 1
+        if alldeals:
+            max_id = max(x[0] for x in alldeals)
+            max_id += 1
+        else:
+            max_id = 0
         names = [x for x in alldeals if x[1] == name]
         if names < 1:
             statement = "INSERT INTO deals VALUES(%s,'%s')" % (name, max_id)
@@ -116,14 +144,51 @@ class DBConnector(object):
         results = cur.execute(statement).fetchall()
         if len(results) < 1:
             return False
-        return results[0]
+
+        return {'item': results[0][0], 'buygrp':results[0][1]}
 
     def get_all_buy_orders(self):
         cur = self.con.cursor()
         results = cur.execute("SELECT * FROM buyorders").fetchall()
         if len(results) < 1:
             return False
-        return results
+        result = []
+        for r in results:
+            b = {}
+            b['item']=r[0]
+            b['buygrp'] = r[1]
+        return result
+
+    def get_deals_as_dict(self):
+
+        deal_dict = {}
+        all_grps = self.get_all_grps()
+        allbuyorders = self.get_all_buy_orders()
+        all_deals = self.get_all_deals()
+        if all_grps:
+            grp_dict = {}
+            for grp in all_grps:
+                grp_dict[grp['grp_id']] = {'number': grp['number'],
+                                 'float': grp['float'],
+                                 'price': grp['price'],
+                                 'items': [],
+                                 'deal_id': grp['deal_id']}
+            if allbuyorders:
+                for buyorder in allbuyorders:
+                    grp_dict[buyorder['buygrp']]['items'].append(buyorder['item'])
+
+
+            if all_deals:
+                for deal in all_deals:
+                    filtered = {key:value for key, value in grp_dict.iteritems() if value['deal_id'] == deal['id']}
+                    deal_dict[deal['id']] = {'name': deal['name'],
+                                             'groups': filtered}
+        return deal_dict
+
+
+
+
+
 
     def save_bought_item(self, item, float):
         cur = self.con.cursor()

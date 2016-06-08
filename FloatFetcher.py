@@ -85,19 +85,16 @@ class FloatFetcher(EventEmitter):
             with self.db_lock:
                 lines = file.readlines()
                 for line in lines[1:]:
-                    item, number, maxfloat, maxprice, buygrp, dealno, dealname = line.split(";")
-                    item = item.replace(" ", "")
-                    print("%s %s,%s,%s,%s" % (lines.index(line), item.replace(" ",""), number, maxfloat, maxprice))
-                    deal = db.get_deal_by_name(dealname)
-                    if not deal:
-                        db.create_deal(dealname)
-                        deal = db.get_deal_by_name(dealname)
-                    
-                    indb = db.get_buy_order(item, maxfloat)
-                    if not indb:
-                        db.create_buy_order(item, number,maxfloat,maxprice)
-                    else:
-                        print(indb)
+                    url, number, maxfloat, maxprice, buygrp, dealno, dealname = line.split(";")
+                    url = url.replace(" ", "")
+                    print("%s %s,%s,%s,%s" % (lines.index(line), url.replace(" ",""), number, maxfloat, maxprice))
+
+
+                    item = db.get_buy_order_by('item',url)
+                    if not item:
+                        pass
+
+
 
     def work_info_q(self):
         while not self.listingq.empty():
