@@ -48,14 +48,14 @@ class Communicator(object):
         try:
             r = requests.get(url, headers=self.user_agent)
         except requests.exceptions.MissingSchema:
-            print "The given URL raised an error %s"%url
+            print("The given URL raised an error %s" % url)
             return False
         if r.ok:
             return r
         elif r.status_code == 429:
             timeouttime = self.timeouter.getTimeout()
-            print
-            "woooops steam is pissed i'm waiting for %s seconds" % timeouttime
+            print(
+                "woooops steam is pissed i'm waiting for %s seconds" % timeouttime)
             time.sleep(timeouttime)
             return self.__doRequest(url)
         else:

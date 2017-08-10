@@ -2,8 +2,10 @@
 import time
 import random
 from WebCommunicator import Communicator
-#item_link = raw_input("Gib mir link!:")
-#print r.json()
+
+
+# item_link = raw_input("Gib mir link!:")
+# print r.json()
 class Listing(object):
     def __init__(self, name="", paintindex=None, paintwear=None, quality=None, id=None,
                  asset_id=None, d_param=None, total_price=None, price=None, fee=None, url=None, listing_dict=None,
@@ -22,7 +24,6 @@ class Listing(object):
             self.price = price
             self.fee = fee
             self.url = url
-
 
     def create_listing_from_dict(self, listing_dict, asset, url):
         if listing_dict["asset"]["id"] in asset.keys():
@@ -55,24 +56,26 @@ class Listing(object):
         return params
 
     def create_rungame_serialization(self):
-        return "M%sA%s%s"%(self.id,self.asset_id,self.d_parameter)
+        return "M%sA%s%s" % (self.id, self.asset_id, self.d_parameter)
+
     def __str__(self):
         return "%s(%r)" % (self.__class__, self.__dict__)
-        
+
+
 class ListingReceiver(object):
     overview_base_url = "http://steamcommunity.com/market/priceoverview/?country=DE&currency=3&appid=730&market_hash_name="
     market_listing_base_url = "http://steamcommunity.com/market/listings/730/"
     listing_manipulator = "/render?start=%s&count=%s&currency=3&language=german&format=json"
-    
-    def __init__(self, item_url, timeouter, sleep_mode = False, session=False):
+
+    def __init__(self, item_url, timeouter, sleep_mode=False, session=False):
         self.sleep_mode = sleep_mode
         self.extracted_item = item_url.split("/")[-1]
         self.item_url = item_url
         self.webcom = Communicator(timeouter, session)
-        priceoverview_url = item_url + self.listing_manipulator%(0,1)
+        priceoverview_url = item_url + self.listing_manipulator % (0, 1)
         self.volume = self.webcom.requestListingNumber(priceoverview_url)
         self.pages = range(0, self.volume, 100)
-        if self.volume/100 > 15:
+        if self.volume / 100 > 15:
             self.pages = range(0, 1500, 100)
 
     def get_items(self, start, count=100):
@@ -104,13 +107,12 @@ class ListingReceiver(object):
         return self.evaluate_listing(datas, assets)
 
     def evaluate_listing(self, listings, assets=None):
-        self.listings = [Listing(url=self.item_url, listing_dict=value, asset=assets) for key, value in listings.iteritems()]
+        self.listings = [Listing(url=self.item_url, listing_dict=value, asset=assets) for key, value in
+                         listings.iteritems()]
         # for key, value in listings.iteritems():
         #     print str(Listing(value))
         return self.listings
 
-                
-           
-#lr = ListingReceiver(item_link)
-#datas = lr.get_all_items()
-#lr.evaluate_listing(datas)
+# lr = ListingReceiver(item_link)
+# datas = lr.get_all_items()
+# lr.evaluate_listing(datas)

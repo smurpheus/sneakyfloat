@@ -4,15 +4,16 @@ from dbconnector import DBConnector
 from WebCommunicator import TimeoutCalculator, Communicator
 import time
 from eventemitter import EventEmitter
-from Queue import Queue
-import thread
+from queue import Queue
 from csgo.msg import get_emsg_enum, find_proto
 from threading import Thread, Timer, RLock, Event
+
 
 def _chunks(l, n):
     """Yield successive n-sized chunks from l."""
     for i in range(0, len(l), n):
         yield l[i:i + n]
+
 
 class FloatFetcher(EventEmitter):
     goclient = None
@@ -24,7 +25,7 @@ class FloatFetcher(EventEmitter):
         self.listingq = Queue()
         self.listingqfull = Queue()
         if do_login:
-            self.goclient = MyClient(False)
+            self.goclient = MyClient(True)
             self.goclient.on("READY", self.clientrdy)
         self.db = None
         self.db_lock = RLock()
@@ -79,6 +80,29 @@ class FloatFetcher(EventEmitter):
             self.goclient._connect_go()
         return filtered
 
+    def _is_contained(self, entry, deal_dict):
+        entry_url = entry['url']
+        entry_price = entry['price']
+        entry_float = entry['float']
+        entry_grp = entry['grp']
+        entry_dealname = entry['dealname']
+        result = False
+        for dealid, deal in deal_dict.items():
+            dealname = deal['name']
+            dealgrps = deal['groups']
+            for grpid, grp in dealgrps.items():
+                grpnum = grp['number']
+                floatval = grp['float']
+                grpprice = grp['price']
+                buyorders = grp['items']
+                for order, vals in buyorders:
+                    orderurl = vals['item']
+                    if orderurl == entry_url and dealname == entry_dealname:
+                        result = True
+                        break
+
+        return result
+
     def get_deals(self):
         with open(self.conffile, "r") as file:
             db = DBConnector()
@@ -87,14 +111,18 @@ class FloatFetcher(EventEmitter):
                 for line in lines[1:]:
                     url, number, maxfloat, maxprice, buygrp, dealno, dealname = line.split(";")
                     url = url.replace(" ", "")
-                    print("%s %s,%s,%s,%s" % (lines.index(line), url.replace(" ",""), number, maxfloat, maxprice))
-
-
-                    item = db.get_buy_order_by('item',url)
-                    if not item:
-                        pass
-
-
+                    print("%s %s,%s,%s,%s" % (lines.index(line), url.replace(" ", ""), number, maxfloat, maxprice))
+                    deal_dict = db.get_deals_as_dict()
+                    if not self._is_contained({'url': url,
+                                               'price': maxprice,
+                                               'float': maxfloat,
+                                               'grp': buygrp,
+                                               'dealname': dealname}, deal_dict):
+                        print(db.create_deal(dealname))
+                        deal = db.get_deal_by_name(dealname)
+                        print(deal)
+                        db.create_deal_grp(buygrp, number, maxfloat, deal['id'], maxprice)
+                        db.create_buy_order(url, buygrp, deal['id'])
 
     def work_info_q(self):
         while not self.listingq.empty():
@@ -121,17 +149,16 @@ class FloatFetcher(EventEmitter):
                     # print("List
 
     def printOutput(self):
-        while 1==1:
+        while 1 == 1:
             if not self.listingq.empty():
-                print self.listingq.get(True, 10)
-
+                print(self.listingq.get(True, 10))
 
     def fetch_listings_for_deals(self):
         with self.db_lock:
             db = DBConnector()
             orders = db.get_all_buy_orders()
             for item, number, maxfloat, maxprice in orders:
-                print self.receive_filtered_listings(item, maxprice, maxfloat, maxnum=100)
+                print(self.receive_filtered_listings(item, maxprice, maxfloat, maxnum=100))
 
     def fill_queue(self):
         with self.db_lock:
@@ -141,8 +168,8 @@ class FloatFetcher(EventEmitter):
             for item, number, maxfloat, maxprice in orders:
                 self.urlq.put(item, timeout=10)
 
-class ListingFetcher(Thread):
 
+class ListingFetcher(Thread):
     def __init__(self, inputqueue, output, timeouter, db):
         thread = Thread(target=self.run, args=())
         thread.daemon = True  # Daemonize thread
@@ -151,7 +178,6 @@ class ListingFetcher(Thread):
         self.output = output
         self.timeouter = timeouter
         thread.start()
-
 
     def run(self):
         self.running = True
@@ -180,6 +206,7 @@ class FillQueue(Thread):
         while not self.stopped.wait(60):
             self.client.fill_queue()
 
+
 class Buyer(Thread):
     def __init__(self, event, client):
         thread = Thread(target=self.run, args=())
@@ -194,39 +221,40 @@ class Buyer(Thread):
             with self.client.db_lock:
                 db = DBConnector()
                 buyorders = db.get_all_buy_orders()
-                print "Buyorders fetched"
+                print("Buyorders fetched")
                 for item, number, maxfloat, maxprice in buyorders:
                     if number >= 1:
                         listings = db.get_listing_for_url(item)
-                        fitting = [x for x in listings if x.total_price <= float(maxprice) and x.paintwear <= float(maxfloat)]
+                        fitting = [x for x in listings if
+                                   x.total_price <= float(maxprice) and x.paintwear <= float(maxfloat)]
                         for item in fitting:
                             print("BUYING ITEM!!!!!!!!!!!!!!!")
                             saved = db.save_bought_item(item, maxfloat)
                             if not saved:
-                                print ("COULD NOT BE SAVED!!!")
+                                print("COULD NOT BE SAVED!!!")
 
 
 if __name__ == "__main__":
-    f = FloatFetcher()
-    f.goclient.wait_event("READY")
-    f.get_deals()
+    f = FloatFetcher(True)
+    # f.goclient.wait_event("READY")
+    # f.get_deals()
 
-    f.fill_queue()
-    # f.fetch_listings_for_deals()
-    lf = ListingFetcher(f.urlq, f.listingq, f.timeouter, f.db)
-    buyer = Buyer(Event(), f)
-    # qfiller = FillQueue(Event(), f)
-    try:
-        while True:
-            f.work_info_q()
-            time.sleep(10)
-    except KeyboardInterrupt:
-        pass
-    # t = thread.start_new_thread(f.printOutput, ())
-    raw_input("Waiting")
-    buyer.stopped.set()
-    # qfiller.stopped.set()
-    lf.running = False
+    # f.fill_queue()
+    # # f.fetch_listings_for_deals()
+    # lf = ListingFetcher(f.urlq, f.listingq, f.timeouter, f.db)
+    # buyer = Buyer(Event(), f)
+    # # qfiller = FillQueue(Event(), f)
+    # try:
+    #     while True:
+    #         f.work_info_q()
+    #         time.sleep(10)
+    # except KeyboardInterrupt:
+    #     pass
+    # # t = thread.start_new_thread(f.printOutput, ())
+    # raw_input("Waiting")
+    # buyer.stopped.set()
+    # # qfiller.stopped.set()
+    # lf.running = False
 
     # while not f.listingqfull.empty():
     #     print("Iteminfor %s"%f.listingqfull.get())

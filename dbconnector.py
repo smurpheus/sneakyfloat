@@ -9,10 +9,10 @@ class DBConnector(object):
 
     def create_listing(self, listing):
         statement = "INSERT INTO listings VALUES(%s,%s,%s,'%s',%s,%s,%s,%s,%s, '%s', %s)" % (
-        listing.id, listing.asset_id,
-        listing.d_parameter, listing.name, listing.price,
-        listing.total_price, listing.paintwear, listing.quality,
-        listing.paintindex, listing.url, listing.fee)
+            listing.id, listing.asset_id,
+            listing.d_parameter, listing.name, listing.price,
+            listing.total_price, listing.paintwear, listing.quality,
+            listing.paintindex, listing.url, listing.fee)
         cur = self.con.cursor()
         cur.execute(statement)
         self.con.commit()
@@ -41,7 +41,7 @@ class DBConnector(object):
 
     def get_all_deals(self):
         cur = self.con.cursor()
-        results = cur.execute("SELECT * from deals").fetchall()
+        results = cur.execute("SELECT * FROM deals").fetchall()
         if len(results) < 1:
             return False
         result = []
@@ -54,7 +54,7 @@ class DBConnector(object):
 
     def get_all_grps(self):
         cur = self.con.cursor()
-        results = cur.execute("SELECT * from buygroup").fetchall()
+        results = cur.execute("SELECT * FROM buygroup").fetchall()
         if len(results) < 1:
             return False
         result = []
@@ -70,7 +70,7 @@ class DBConnector(object):
 
     def get_deal_grp_by(self, key, value):
         cur = self.con.cursor()
-        results = cur.execute("SELECT * from buygroup WHERE %s='%s'" %(key, value)).fetchall()
+        results = cur.execute("SELECT * from buygroup WHERE %s='%s'" % (key, value)).fetchall()
         if len(results) < 1:
             return False
         result = results[0]
@@ -83,21 +83,31 @@ class DBConnector(object):
         return result_dict
 
     def create_deal_grp(self, grp_id, number, floatv, deal_id, price):
-        statement = "INSERT INTO buygroup VALUES(%s,%s,%s,%s,%s)" % (grp_id, number, floatv, deal_id, price)
-        cur = self.con.cursor()
-        cur.execute(statement)
-        self.con.commit()
+        deal_grps = self.get_all_grps()
+        if deal_grps:
+            deal_grps = [x for x in deal_grps if
+                         x['grp_id'] == grp_id and x['float'] == floatv and x['deal_id'] == deal_id and x[
+                             'price'] == price]
+        else:
+            deal_grps = []
+        if len(deal_grps) == 0:
+            statement = "INSERT INTO buygroup VALUES(%s,%s,%s,%s,%s)" % (grp_id, number, floatv, deal_id, price)
+            cur = self.con.cursor()
+            cur.execute(statement)
+            self.con.commit()
 
     def create_deal(self, name):
         alldeals = self.get_all_deals()
         if alldeals:
-            max_id = max(x[0] for x in alldeals)
+            max_id = max(x['id'] for x in alldeals)
             max_id += 1
+            names = [x for x in alldeals if x['name'] == name]
+
         else:
             max_id = 0
-        names = [x for x in alldeals if x[1] == name]
-        if names < 1:
-            statement = "INSERT INTO deals VALUES(%s,'%s')" % (name, max_id)
+            names = []
+        if len(names) < 1:
+            statement = "INSERT INTO deals VALUES('%s',%s)" % (name, max_id)
             cur = self.con.cursor()
             cur.execute(statement)
             self.con.commit()
@@ -123,16 +133,22 @@ class DBConnector(object):
         results = cur.execute("SELECT * from listings WHERE url='%s'" % url).fetchall()
         listings = []
         for result in results:
-            listings.append(Listing(id=result[0], asset_id=result[1], d_param=result[2], name=result[3], price=result[4],
-                    total_price=result[5], paintwear=result[6], quality=result[7], paintindex=result[8],
-                    url=result[9], fee=result[10]))
+            listings.append(
+                Listing(id=result[0], asset_id=result[1], d_param=result[2], name=result[3], price=result[4],
+                        total_price=result[5], paintwear=result[6], quality=result[7], paintindex=result[8],
+                        url=result[9], fee=result[10]))
         return listings
 
-    def create_buy_order(self, item, grp_id):
-        result = self.get_buy_order(item, grp_id)
-        if result:
-            return False
-        statement = "INSERT INTO buyorders VALUES ('%s', %s)" % (item, grp_id)
+    def create_buy_order(self, item, grp_id, deal_id):
+        result = self.get_all_buy_orders()
+        if isinstance(result, list):
+            if len(result) > 0:
+                return False
+            result = [x for x in result if x['item'] == item]
+            if len(result) > 0:
+                return False
+
+        statement = "INSERT INTO buyorders VALUES ('%s', %s, %s)" % (item, grp_id, deal_id)
         print(statement)
         cur = self.con.cursor()
         cur.execute(statement)
@@ -145,7 +161,7 @@ class DBConnector(object):
         if len(results) < 1:
             return False
 
-        return {'item': results[0][0], 'buygrp':results[0][1]}
+        return {'item': results[0][0], 'buygrp': results[0][1]}
 
     def get_all_buy_orders(self):
         cur = self.con.cursor()
@@ -155,8 +171,10 @@ class DBConnector(object):
         result = []
         for r in results:
             b = {}
-            b['item']=r[0]
+            b['item'] = r[0]
             b['buygrp'] = r[1]
+            b['dealid'] = r[2]
+            result.append(b)
         return result
 
     def get_deals_as_dict(self):
@@ -169,26 +187,25 @@ class DBConnector(object):
             grp_dict = {}
             for grp in all_grps:
                 grp_dict[grp['grp_id']] = {'number': grp['number'],
-                                 'float': grp['float'],
-                                 'price': grp['price'],
-                                 'items': [],
-                                 'deal_id': grp['deal_id']}
+                                           'float': grp['float'],
+                                           'price': grp['price'],
+                                           'items': [],
+                                           'deal_id': grp['deal_id']}
             if allbuyorders:
                 for buyorder in allbuyorders:
+                    if buyorder['buygrp'] not in grp_dict.keys():
+                        grp_dict[buyorder['buygrp']] = {}
+                        if 'items' not in grp_dict[buyorder['buygrp']].keys():
+                            grp_dict[buyorder['buygrp']]['items'] = []
                     grp_dict[buyorder['buygrp']]['items'].append(buyorder['item'])
-
 
             if all_deals:
                 for deal in all_deals:
-                    filtered = {key:value for key, value in grp_dict.iteritems() if value['deal_id'] == deal['id']}
+                    filtered = {key: value for key, value in grp_dict.items() if
+                                'deal_id' in value and value['deal_id'] == deal['id']}
                     deal_dict[deal['id']] = {'name': deal['name'],
                                              'groups': filtered}
         return deal_dict
-
-
-
-
-
 
     def save_bought_item(self, item, float):
         cur = self.con.cursor()
@@ -198,8 +215,7 @@ class DBConnector(object):
         bought = result[1]
         bought -= 1
         self.delete_listing_by_id(item.id)
-        statement = "UPDATE buyorders set number=%s where (item='%s' and maxfloat=%s)"%(bought, item.url, float)
+        statement = "UPDATE buyorders set number=%s where (item='%s' and maxfloat=%s)" % (bought, item.url, float)
         cur.execute(statement)
         self.con.commit()
         return True
-

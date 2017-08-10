@@ -8,10 +8,7 @@ import datetime
 EMAIL_FOLDER = "Steam"
 
 
-
-
 class EmailConnector(object):
-
     def __init__(self, email, passwd=None, server='imap.gmail.com'):
         self.imapsock = imaplib.IMAP4_SSL(server)
         self.email = email
@@ -22,9 +19,7 @@ class EmailConnector(object):
         try:
             rv, data = self.imapsock.login(self.email, self.passwd)
         except imaplib.IMAP4.error:
-            print "LOGIN FAILED!!! "
-
-
+            print("LOGIN FAILED!!! ")
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.imapsock.logout()
@@ -38,14 +33,14 @@ class EmailConnector(object):
 
         rv, data = self.imapsock.search(None, "ALL")
         if rv != 'OK':
-            print "No messages found!"
+            print("No messages found!")
             return
 
         if isinstance(data[0], str):
             for num in data[0].split():
                 rv, raw_data = self.imapsock.fetch(num, '(RFC822)')
                 if rv != 'OK':
-                    print "ERROR getting message", num
+                    print("ERROR getting message", num)
                     return
 
                 msg = email.message_from_string(raw_data[0][1])
@@ -68,21 +63,21 @@ class EmailConnector(object):
         querystring = "smurf3us:"
         position = msg.find(querystring)
         position += len(querystring)
-        return msg[position:position+10].replace("\r","").replace("\n","")
+        return msg[position:position + 10].replace("\r", "").replace("\n", "")
 
     def getNewestCode(self):
         rv, data = self.imapsock.select(EMAIL_FOLDER)
         if rv == 'OK':
-            print "Processing mailbox...\n"
+            print("Processing mailbox...\n")
             mails = self.process_mailbox()
             newest = max(mails.keys())
             self.imapsock.close()
             return self._get_code(mails[newest])
         else:
-            print "ERROR: Unable to open mailbox ", rv
+            print("ERROR: Unable to open mailbox ", rv)
 
 
 if __name__ == "__main__":
-    emailaddr = raw_input("Bitte Email Adresse eingeben: ")
+    emailaddr = input("Bitte Email Adresse eingeben: ")
     ec = EmailConnector(emailaddr)
-    print ec.getNewestCode()
+    print(ec.getNewestCode())
